@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AromaLeaf — Aromatic Plant Identifier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    /* ── TOKENS ─────────────────────────────────────────────── */
+    :root {
+      --bg:       #0d120e;
+      --surface:  #131a14;
+      --border:   #243326;
+      --green:    #4caf6e;
+      --green-dim:#2a6e42;
+      --amber:    #d4a84b;
+      --text:     #e8ede9;
+      --muted:    #6b8070;
+      --card:     #171f18;
+    }
+
+    /* ── RESET ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ──────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── BOTANICAL BG PATTERN ───────────────────────────────── */
+    .bg-pattern {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 80% 20%, rgba(76,175,110,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 60% at 20% 80%, rgba(76,175,110,0.05) 0%, transparent 70%);
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────────── */
+    .wrap {
+      position: relative; z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    header {
+      padding: 52px 0 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+    }
+
+    .logo-ring {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 1.5px solid var(--green-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      background: radial-gradient(circle, rgba(76,175,110,0.12) 0%, transparent 70%);
+      animation: pulse-ring 3s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,110,0.2); }
+      50%       { box-shadow: 0 0 0 10px rgba(76,175,110,0); }
+    }
+
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 300;
+      letter-spacing: 0.05em;
+      color: var(--text);
+    }
+    h1 em {
+      font-style: italic;
+      color: var(--green);
+    }
+
+    .tagline {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── UPLOAD ZONE ────────────────────────────────────────── */
+    .upload-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 4px;
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .3s, background .3s;
+      position: relative;
+      background: var(--surface);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--green);
+      background: rgba(76,175,110,0.04);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+
+    .upload-icon {
+      font-size: 2.8rem;
+      display: block;
+      margin-bottom: 16px;
+      filter: grayscale(0.3);
+    }
+    .upload-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.4rem;
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .upload-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* ── PREVIEW STRIP ──────────────────────────────────────── */
+    #preview-wrap {
+      display: none;
+      margin-top: 24px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--card);
+    }
+    #preview-img {
+      width: 100%;
+      max-height: 360px;
+      object-fit: cover;
+      display: block;
+    }
+    .preview-meta {
+      padding: 12px 20px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── ANALYZE BUTTON ─────────────────────────────────────── */
+    .btn-analyze {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      padding: 16px;
+      background: transparent;
+      border: 1.5px solid var(--green);
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: background .25s, color .25s, transform .1s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-analyze:hover:not(:disabled) {
+      background: var(--green);
+      color: var(--bg);
+    }
+    .btn-analyze:active:not(:disabled) { transform: scale(0.99); }
+    .btn-analyze:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── LOADER ─────────────────────────────────────────────── */
+    #loader {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── RESULT CARD ─────────────────────────────────────────── */
+    #result {
+      display: none;
+      margin-top: 32px;
+      animation: rise .4s ease;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      padding: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px 4px 0 0;
+      border-bottom: none;
+    }
+    .result-thumb {
+      width: 80px; height: 80px;
+      object-fit: cover;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+    .result-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .result-class {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 400;
+      color: var(--green);
+      line-height: 1.1;
+    }
+    .result-conf-text {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .result-conf-text span {
+      color: var(--amber);
+      font-weight: 400;
+    }
+
+    /* confidence bar */
+    .conf-bar-wrap {
+      margin-top: 12px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .conf-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green-dim), var(--green));
+      border-radius: 2px;
+      transition: width 0.8s cubic-bezier(.25,.8,.25,1);
+    }
+
+    /* top 3 table */
+    .top3-block {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0 0 4px 4px;
+    }
+    .top3-title {
+      padding: 14px 28px 10px;
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .top3-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      transition: background .2s;
+    }
+    .top3-row:last-child { border-bottom: none; }
+    .top3-row:hover { background: rgba(76,175,110,0.03); }
+    .top3-rank {
+      font-size: 0.65rem;
+      color: var(--muted);
+      width: 20px;
+      flex-shrink: 0;
+    }
+    .top3-name {
+      flex: 1;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+    .top3-pct {
+      font-size: 0.72rem;
+      color: var(--amber);
+      width: 52px;
+      text-align: right;
+    }
+    .top3-mini-bar {
+      width: 80px; height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .top3-mini-fill {
+      height: 100%;
+      background: var(--green-dim);
+      border-radius: 1px;
+      transition: width 0.6s ease;
+    }
+    .top3-row.top { }
+    .top3-row.top .top3-name { color: var(--green); }
+    .top3-row.top .top3-mini-fill { background: var(--green); }
+
+    /* ── ERROR ──────────────────────────────────────────────── */
+    #error-box {
+      display: none;
+      margin-top: 20px;
+      padding: 16px 20px;
+      border: 1px solid #6b2a2a;
+      background: rgba(107,42,42,0.12);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #e07070;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── FOOTER ─────────────────────────────────────────────── */
+    footer {
+      margin-top: 60px;
+      text-align: center;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    /* ── RESPONSIVE ─────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .result-header { flex-direction: column; }
+      .top3-mini-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="bg-pattern"></div>
+<div class="wrap">
+
+  <header>
+    <div class="logo-ring">🌿</div>
+    <h1>Aroma<em>Leaf</em></h1>
+    <p class="tagline">Aromatic Plant Intelligence · CNN Classifier</p>
+  </header>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*" />
+    <span class="upload-icon">🍃</span>
+    <p class="upload-title">Drop a leaf image here</p>
+    <p class="upload-sub">or click to browse · JPG, PNG, WEBP</p>
+  </div>
+
+  <!-- PREVIEW -->
+  <div id="preview-wrap">
+    <img id="preview-img" src="" alt="Preview" />
+    <p class="preview-meta" id="preview-meta"></p>
+  </div>
+
+  <!-- BUTTON -->
+  <button class="btn-analyze" id="btn-analyze" disabled>
+    ▶ &nbsp; Identify Leaf
+  </button>
+
+  <!-- LOADER -->
+  <div id="loader">
+    <div class="spinner"></div>
+    <span>Analysing leaf morphology…</span>
+  </div>
+
+  <!-- ERROR -->
+  <div id="error-box"></div>
+
+  <!-- RESULT -->
+  <div id="result">
+    <div class="result-header">
+      <img id="result-thumb" class="result-thumb" src="" alt="" />
+      <div style="flex:1; min-width:0;">
+        <p class="result-label">Identified Species</p>
+        <p class="result-class" id="result-class">—</p>
+        <p class="result-conf-text">Confidence: <span id="result-conf">—</span></p>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar-fill" id="conf-bar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="top3-block">
+      <p class="top3-title">Top Predictions</p>
+      <div id="top3-rows"></div>
+    </div>
+  </div>
+
+  <footer>AromaLeaf · Powered by TensorFlow / Keras &amp; Flask</footer>
+</div>
+
+<script>
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const previewWrap= document.getElementById('preview-wrap');
+const previewImg = document.getElementById('preview-img');
+const previewMeta= document.getElementById('preview-meta');
+const btnAnalyze = document.getElementById('btn-analyze');
+const loader     = document.getElementById('loader');
+const resultDiv  = document.getElementById('result');
+const errorBox   = document.getElementById('error-box');
+
+let selectedFile = null;
+
+/* ── DRAG & DROP ─────────────────────────────────── */
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  selectedFile = file;
+  const url = URL.createObjectURL(file);
+  previewImg.src = url;
+  previewMeta.textContent = `${file.name}  ·  ${(file.size/1024).toFixed(1)} KB`;
+  previewWrap.style.display = 'block';
+  resultDiv.style.display   = 'none';
+  errorBox.style.display    = 'none';
+  btnAnalyze.disabled = false;
+}
+
+/* ── SUBMIT ──────────────────────────────────────── */
+btnAnalyze.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  // UI state
+  btnAnalyze.disabled = true;
+  loader.style.display = 'flex';
+  resultDiv.style.display = 'none';
+  errorBox.style.display  = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('image', selectedFile);
+
+    const res = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok || data.error) throw new Error(data.error || 'Server error');
+
+    showResult(data);
+  } catch (err) {
+    errorBox.textContent = '⚠ ' + err.message;
+    errorBox.style.display = 'block';
+  } finally {
+    loader.style.display = 'none';
+    btnAnalyze.disabled = false;
+  }
+});
+
+/* ── RENDER RESULT ───────────────────────────────── */
+function showResult(data) {
+  document.getElementById('result-class').textContent = data.prediction;
+  document.getElementById('result-conf').textContent  = data.confidence + '%';
+  document.getElementById('result-thumb').src = data.image_data;
+
+  // Animate confidence bar
+  requestAnimationFrame(() => {
+    document.getElementById('conf-bar').style.width = data.confidence + '%';
+  });
+
+  // Top-3
+  const container = document.getElementById('top3-rows');
+  container.innerHTML = '';
+  data.top3.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'top3-row' + (i === 0 ? ' top' : '');
+    row.innerHTML = `
+      <span class="top3-rank">#${i+1}</span>
+      <span class="top3-name">${item.class}</span>
+      <div class="top3-mini-bar">
+        <div class="top3-mini-fill" style="width:${item.confidence}%"></div>
+      </div>
+      <span class="top3-pct">${item.confidence}%</span>
+    `;
+    container.appendChild(row);
+  });
+
+  resultDiv.style.display = 'block';
+  resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
