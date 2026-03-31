@@ -60,15 +60,23 @@ model = None
 
 def load_model():
     global model
-    if not os.path.exists(MODEL_PATH):
-        print(f"⚠  Model file '{MODEL_PATH}' not found. Place it in the app folder.")
-        return
     try:
         from tensorflow import keras
-        model = keras.models.load_model(MODEL_PATH)
+
+        model_path = os.path.join(os.getcwd(), MODEL_PATH)
+
+        if not os.path.exists(model_path):
+            print(f"❌ Model file not found at: {model_path}")
+            return
+
+        model = keras.models.load_model(model_path)
         print("✅ Model loaded successfully.")
+
     except Exception as e:
         print(f"❌ Failed to load model: {e}")
+
+# ✅ LOAD MODEL WHEN APP STARTS (IMPORTANT FOR RENDER)
+load_model()
 
 # ─── PREPROCESS ───────────────────────────────────────────────────────────────
 # Uses MobileNetV2's preprocess_input — MUST match what was used during training.
@@ -130,7 +138,3 @@ def predict():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-if __name__ == "__main__":
-    load_model()
-    app.run(debug=True, port=5000)
