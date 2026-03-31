@@ -96,38 +96,39 @@ def index():
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    # Ensure model is loaded
     if model is None:
         return jsonify({"error": "Model not loaded. Check server logs."}), 503
 
-    if "image" not in request.files:
+    # Ensure image is provided
+    if "image" not in request.files or request.files["image"].filename == "":
         return jsonify({"error": "No image provided."}), 400
 
     file = request.files["image"]
-    if file.filename == "":
-        return jsonify({"error": "Empty filename."}), 400
 
     try:
+        # Read and preprocess
         image_bytes = file.read()
         tensor = preprocess_image(image_bytes)
 
-        preds = model.predict(tensor)[0]          # shape: (num_classes,)
+        # Make prediction
+        preds = model.predict(tensor)[0]  # shape: (num_classes,)
         top_idx = int(np.argmax(preds))
         top_conf = float(preds[top_idx])
 
-        # Build top-3 results
+        # Top-3 classes
         top3_idx = np.argsort(preds)[::-1][:3]
         top3 = [
-            {
-                "class": CLASS_NAMES[i] if i < len(CLASS_NAMES) else f"Class {i}",
-                "confidence": round(float(preds[i]) * 100, 2),
-            }
+            {"class": CLASS_NAMES[i] if i < len(CLASS_NAMES) else f"Class {i}",
+             "confidence": round(float(preds[i]) * 100, 2)}
             for i in top3_idx
         ]
 
-        # Return image as base64 for preview
+        # Encode image for preview
         img_b64 = base64.b64encode(image_bytes).decode("utf-8")
         ext = file.content_type or "image/jpeg"
 
+        # Return JSON
         return jsonify({
             "prediction": CLASS_NAMES[top_idx] if top_idx < len(CLASS_NAMES) else f"Class {top_idx}",
             "confidence": round(top_conf * 100, 2),
@@ -136,5 +137,8 @@ def predict():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        # ALWAYS return JSON, never empty
+        import traceback
+        print("❌ Prediction error:", e)
+        traceback.print_exc()
+        return jsonify({"error": "Prediction failed.", "details": str(e)}), 500
